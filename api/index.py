@@ -89,8 +89,8 @@ def generate_terminal():
         
         <rect x="5" y="5" width="510" height="330" class="bg" rx="10"/>
         
-        <text x="20" y="35" class="text">
-            {ascii_text.replace('+', '&#43;')}
+    <text x="20" y="35" class="text">
+            {ascii_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('+', '&#43;')}
             <tspan class="cursor">_</tspan>
         </text>
     </svg>
