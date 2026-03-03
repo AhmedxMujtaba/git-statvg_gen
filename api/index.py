@@ -68,26 +68,35 @@ def generate_terminal():
 +-------------------------------------------------------+
     """
 
-   # Ensure all XML restricted characters are safely escaped
+    # 3. Ensure all XML restricted characters are safely escaped
     escaped_text = ascii_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('+', '&#43;')
 
-    # SVG Wrapper - 100% Inline for GitHub Camo compatibility
+    # 4. Break the ASCII text into individual lines so SVG can render them vertically
+    tspan_lines = ""
+    for i, line in enumerate(escaped_text.strip('\n').split('\n')):
+        # The first line stays at y=35, every line after drops down 16 pixels
+        dy = "0" if i == 0 else "16"
+        tspan_lines += f'            <tspan x="20" dy="{dy}">{line}</tspan>\n'
+
+    # 5. SVG Wrapper - 100% Inline and purely structural (Bypasses GitHub Camo)
     svg_content = f"""
     <svg width="520" height="340" viewBox="0 0 520 340" xmlns="http://www.w3.org/2000/svg">
         <rect x="5" y="5" width="510" height="330" fill="#0d1117" stroke="#30363d" stroke-width="2" rx="10"/>
         
-        <text x="20" y="35" font-family="'Courier New', Courier, monospace" font-size="14" fill="#00d4ff" xml:space="preserve">
-            {escaped_text}
-            <tspan opacity="0.8">_</tspan>
+        <text y="35" font-family="'Courier New', Courier, monospace" font-size="14" fill="#00d4ff">
+{tspan_lines}
+            <tspan x="20" dy="16" opacity="0.8">_</tspan>
         </text>
     </svg>
     """
 
+    # 6. Force Public Headers so GitHub doesn't get a 401 Unauthorized Error
     headers = {
-        'Cache-Control': 'public, max-age=1800',
-        'Content-Type': 'image/svg+xml'
+        'Cache-Control': 'public, max-age=1800, s-maxage=1800, stale-while-revalidate=86400',
+        'Content-Type': 'image/svg+xml',
+        'Access-Control-Allow-Origin': '*'
     }
-    return Response(svg_content.strip(), mimetype='image/svg+xml', headers=headers)
+    return Response(svg_content.strip(), status=200, mimetype='image/svg+xml', headers=headers)
 
 if __name__ == '__main__':
     app.run()
