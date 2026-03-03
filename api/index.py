@@ -68,35 +68,21 @@ def generate_terminal():
 +-------------------------------------------------------+
     """
 
-    # 3. SVG Wrapper with Neon Glow, SVG Borders, and Blinking Cursor
+   # Ensure all XML restricted characters are safely escaped
+    escaped_text = ascii_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('+', '&#43;')
+
+    # SVG Wrapper - 100% Inline for GitHub Camo compatibility
     svg_content = f"""
-    <svg width="520" height="340" viewBox="0 0 520 340" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <style>
-            .text {{ 
-                font: 14px 'Courier New', monospace; 
-                fill: #00d4ff; 
-                white-space: pre; 
-                text-shadow: 0px 0px 4px rgba(0, 212, 255, 0.6);
-            }}
-            .bg {{ 
-                fill: #0d1117; 
-                stroke: #30363d; 
-                stroke-width: 2; 
-            }}
-            .cursor {{ animation: blink 1s step-end infinite; }}
-            @keyframes blink {{ 50% {{ opacity: 0; }} }}
-        </style>
+    <svg width="520" height="340" viewBox="0 0 520 340" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="5" width="510" height="330" fill="#0d1117" stroke="#30363d" stroke-width="2" rx="10"/>
         
-        <rect x="5" y="5" width="510" height="330" class="bg" rx="10"/>
-        
-    <text x="20" y="35" class="text">
-            {ascii_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('+', '&#43;')}
-            <tspan class="cursor">_</tspan>
+        <text x="20" y="35" font-family="'Courier New', Courier, monospace" font-size="14" fill="#00d4ff" xml:space="preserve">
+            {escaped_text}
+            <tspan opacity="0.8">_</tspan>
         </text>
     </svg>
     """
 
-    # 4. Cache Control: Tells GitHub to only cache this for 30 minutes
     headers = {
         'Cache-Control': 'public, max-age=1800',
         'Content-Type': 'image/svg+xml'
