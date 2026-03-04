@@ -9,7 +9,7 @@ app = Flask(__name__)
 def generate_terminal():
     user = "AhmedXMujtaba"
     headers = {}
-    
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # 1. Use token to prevent 403 Rate Limit crashes
     token = os.environ.get("GITHUB_TOKEN")
     if token:
@@ -43,6 +43,8 @@ def generate_terminal():
     line4 = pad_line(f"  > FOLLOWERS:    {followers}")
     line5 = pad_line(f"  > FOLLOWING:    {following}")
     line6 = pad_line(f"  > UPTIME:       {account_age} DAYS")
+    line7 = pad_line(f"  > LAST_UPDATED: {now}") # Added timestamp
+    
     
     ascii_text = f"""
 +-------------------------------------------------------+
@@ -51,13 +53,14 @@ def generate_terminal():
 |                                                       |
 |{line1}|
 |{line2}|
-|                                                       |
+|-------------------------------------------------------|
 |  METRICS:                                             |
 |{line3}|
 |{line4}|
 |{line5}|
 |{line6}|
-|                                                       |
+|{line7}|
+|--------------------------------------------------------
 |  CORE_STABILITY: [=========================] 100%     |
 |  UPLINK: ACTIVE                                       |
 |                                                       |
