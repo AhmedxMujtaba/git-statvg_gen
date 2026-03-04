@@ -215,9 +215,6 @@ def traffic_terminal():
 |  SESSION:  ACTIVE                                     |
 |                                                       |
 |  VISITS:   {count.ljust(41)} |
-|  THREAT:   NONE                                       |
-|                                                       |
-|  [||||||||||||||||||||||||||||||||||||||||||||] 100%  |
 |                                                       |
 |  MONITORING INCOMING PACKETS...                       |
 +-------------------------------------------------------+"""
