@@ -96,25 +96,68 @@ def language_terminal():
     return generate_svg_response(ascii_text, height=280)
 
 def contribution_terminal():
-    # ASCII Sparkline Graph representing weekly activity
-    ascii_text = """
+    user = "AhmedXMujtaba"
+    token = os.environ.get("GITHUB_TOKEN")
+    
+    # GraphQL Query to get the last week of contributions
+    query = """
+    query($userName:String!) {
+      user(login: $userName) {
+        contributionsCollection {
+          contributionCalendar {
+            weeks {
+              contributionDays {
+                contributionCount
+                weekday
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+    
+    try:
+        response = requests.post(
+            "https://api.github.com/graphql",
+            json={"query": query, "variables": {"userName": user}},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        data = response.json()
+        # Get the very last week from the calendar
+        days = data['data']['user']['contributionsCollection']['contributionCalendar']['weeks'][-1]['contributionDays']
+        counts = [d['contributionCount'] for d in days]
+    except:
+        counts = [0, 0, 0, 0, 0, 0, 0] # Fallback if API fails
+
+    # Map commit counts to ASCII sparkline characters
+    # Level 0: _ , Level 1-2: . , Level 3-5: o , Level 6+: O
+    def get_char(count):
+        if count == 0: return "_"
+        if count < 3: return "."
+        if count < 6: return "o"
+        return "O"
+
+    sparkline = "  ".join([get_char(c) for c in counts])
+    total_weekly = sum(counts)
+
+    ascii_text = f"""
 +-------------------------------------------------------+
 | git-statvg_gen // CONTRIBUTION_VOLATILITY             |
 +-------------------------------------------------------+
 |                                                       |
-|  ACTIVITY_LOG (LAST 6 MONTHS):                        |
+|  WEEKLY_FEED (SUN -> SAT):                            |
 |                                                       |
-|  High |          _  _          _                      |
-|       |   _  _  | || |  _    _| |  _                  |
-|       |  | || |_| || | | | _| | |_| |  _              |
-|  Low  |  |_||_|_|_||_| |_||_|_| |_|_|_| |             |
-|       +---------------------------------------        |
-|          JAN  FEB  MAR  APR  MAY  JUN                 |
+|  STATUS: {sparkline.ljust(35)} |
 |                                                       |
-|  STATUS: HIGH_VELOCITY_DEVELOPMENT                    |
+|  TOTAL_COMMITS_THIS_WEEK: {str(total_weekly).ljust(27)} |
+|                                                       |
+|  [0]: _ (None)  [1-2]: . (Low)                        |
+|  [3-5]: o (Med) [6+]: O (High)                        |
+|                                                       |
+|  SIGNAL_STRENGTH: [==========----------] 50%          |
 +-------------------------------------------------------+"""
     return generate_svg_response(ascii_text, height=300)
-
 def traffic_terminal():
     # Integrated Traffic Monitor using the itsvg API you mentioned
     user = "AhmedXMujtaba"
