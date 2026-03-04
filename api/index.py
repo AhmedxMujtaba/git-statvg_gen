@@ -71,7 +71,7 @@ def main_terminal():
 |  METRICS:                                             |
 |  > REPOSITORIES: {str(repos).ljust(36)} |
 |  > FOLLOWERS:    {str(followers).ljust(36)} |
-|  > UPTIME:       {str(age).ljust(30)+"-DAYS"} |
+|  > UPTIME:       {str(age)}-DAYS{"".ljust(30 - len(str(age)) - 5)} |
 |  > LAST_UPDATED: {now.ljust(36)} |
 |                                                       |
 |  CORE_STABILITY: [=========================] 100%     |
