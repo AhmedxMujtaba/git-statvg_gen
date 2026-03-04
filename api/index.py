@@ -16,9 +16,9 @@ def generate_svg_response(ascii_text, height=340):
         dy = "0" if i == 0 else "16"
         tspan_lines += f'            <tspan x="20" dy="{dy}">{line}</tspan>\n'
 
+    # Borderless floating terminal: <rect> removed
     svg = f"""
     <svg width="520" height="{height}" viewBox="0 0 520 {height}" xmlns="http://www.w3.org/2000/svg">
-        <rect x="5" y="5" width="510" height="{height-10}" fill="none" stroke="#30363d" stroke-width="2" rx="10"/>
         <text y="35" font-family="'Courier New', Courier, monospace" font-size="14" fill="#00d4ff">
 {tspan_lines}
             <tspan x="20" dy="16" opacity="0.8">_</tspan>
@@ -98,8 +98,6 @@ def language_terminal():
 def contribution_terminal():
     user = "AhmedXMujtaba"
     token = os.environ.get("GITHUB_TOKEN")
-    
-    # GraphQL Query to get the last week of contributions
     query = """
     query($userName:String!) {
       user(login: $userName) {
@@ -108,7 +106,6 @@ def contribution_terminal():
             weeks {
               contributionDays {
                 contributionCount
-                weekday
               }
             }
           }
@@ -116,7 +113,6 @@ def contribution_terminal():
       }
     }
     """
-    
     try:
         response = requests.post(
             "https://api.github.com/graphql",
@@ -124,45 +120,56 @@ def contribution_terminal():
             headers={"Authorization": f"Bearer {token}"}
         )
         data = response.json()
-        # Get the very last week from the calendar
-        days = data['data']['user']['contributionsCollection']['contributionCalendar']['weeks'][-1]['contributionDays']
-        counts = [d['contributionCount'] for d in days]
+        all_weeks = data['data']['user']['contributionsCollection']['contributionCalendar']['weeks']
+        # Extract total counts per week for the last 18 weeks
+        weekly_counts = [sum(day['contributionCount'] for day in week['contributionDays']) for week in all_weeks[-18:]]
+        max_val = max(weekly_counts) if max(weekly_counts) > 0 else 1
     except:
-        counts = [0, 0, 0, 0, 0, 0, 0] # Fallback if API fails
+        weekly_counts = [0] * 18
+        max_val = 1
 
-    # Map commit counts to ASCII sparkline characters
-    # Level 0: _ , Level 1-2: . , Level 3-5: o , Level 6+: O
-    def get_char(count):
-        if count == 0: return "_"
-        if count < 3: return "."
-        if count < 6: return "o"
-        return "O"
-
-    sparkline = "  ".join([get_char(c) for c in counts])
-    total_weekly = sum(counts)
+    # Graph Rendering Logic
+    # We represent 3 levels of height for each bar
+    graph_lines = ["", "", ""] 
+    for count in weekly_counts:
+        ratio = count / max_val
+        if ratio > 0.6:
+            graph_lines[0] += " █ "
+            graph_lines[1] += " █ "
+            graph_lines[2] += " █ "
+        elif ratio > 0.3:
+            graph_lines[0] += "   "
+            graph_lines[1] += " █ "
+            graph_lines[2] += " █ "
+        elif ratio > 0:
+            graph_lines[0] += "   "
+            graph_lines[1] += "   "
+            graph_lines[2] += " █ "
+        else:
+            graph_lines[0] += "   "
+            graph_lines[1] += "   "
+            graph_lines[2] += " _ "
 
     ascii_text = f"""
 +-------------------------------------------------------+
 | git-statvg_gen // CONTRIBUTION_VOLATILITY             |
 +-------------------------------------------------------+
 |                                                       |
-|  WEEKLY_FEED (SUN -> SAT):                            |
+|  ACTIVITY_LOG (HISTORICAL_SPAN):                      |
 |                                                       |
-|  STATUS: {sparkline.ljust(35)} |
+|  High | {graph_lines[0]} |
+|  Med  | {graph_lines[1]} |
+|  Low  | {graph_lines[2]} |
+|       +---------------------------------------        |
+|          Q3                Q4                Q1       |
 |                                                       |
-|  TOTAL_COMMITS_THIS_WEEK: {str(total_weekly).ljust(27)} |
-|                                                       |
-|  [0]: _ (None)  [1-2]: . (Low)                        |
-|  [3-5]: o (Med) [6+]: O (High)                        |
-|                                                       |
-|  SIGNAL_STRENGTH: [==========----------] 50%          |
+|  STATUS: ANALYSIS_COMPLETE                            |
+|  SIGNAL: STABLE_GROWTH_DETECTED                       |
 +-------------------------------------------------------+"""
-    return generate_svg_response(ascii_text, height=300)
+    return generate_svg_response(ascii_text, height=320)
 def traffic_terminal():
-    # Integrated Traffic Monitor using the itsvg API you mentioned
     user = "AhmedXMujtaba"
     try:
-        # Fetching your existing visit counter data
         r = requests.get(f"https://visitcount.itsvg.in/api?id={user}")
         count = r.text if r.status_code == 200 else "---"
     except: count = "ERROR"
