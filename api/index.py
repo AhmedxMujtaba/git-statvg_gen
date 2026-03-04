@@ -40,10 +40,13 @@ def generate_svg_response(ascii_text, height=340):
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def router(path):
-    if path == 'languages': return language_terminal()
-    if path == 'contributions': return contribution_terminal()
-    if path == 'traffic': return traffic_terminal()
-    if path == 'telemetry': return main_terminal()
+    # strip leading api/ in case Vercel forwards with prefix
+    path = path.removeprefix("api/").strip("/")
+    if path == "languages": return language_terminal()
+    if path == "contributions": return contribution_terminal()
+    if path == "traffic": return traffic_terminal()
+    if path == "telemetry": return main_terminal()
+    if path == "repos": return repos_terminal()
     return main_terminal()
 
 def main_terminal():
@@ -212,7 +215,130 @@ def traffic_terminal():
 |  SESSION:  ACTIVE                                     |
 |                                                       |
 |  VISITS:   {count.ljust(41)} |
+|  THREAT:   NONE                                       |
+|                                                       |
+|  [||||||||||||||||||||||||||||||||||||||||||||] 100%  |
 |                                                       |
 |  MONITORING INCOMING PACKETS...                       |
 +-------------------------------------------------------+"""
     return generate_svg_response(ascii_text, height=280)
+
+def repos_terminal():
+    user = "AhmedXMujtaba"
+    token = os.environ.get("GITHUB_TOKEN")
+
+    # Single GraphQL request — replaces N+1 REST calls
+    query = """
+    query($userName: String!) {
+      user(login: $userName) {
+        repositories(
+          first: 20,
+          ownerAffiliations: OWNER,
+          isFork: false,
+          orderBy: { field: PUSHED_AT, direction: DESC }
+        ) {
+          nodes {
+            name
+            stargazerCount
+            defaultBranchRef {
+              target {
+                ... on Commit {
+                  history(author: { id: "" }) {
+                    totalCount
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    # We need the user's node ID to filter commits by author accurately
+    id_query = """
+    query($userName: String!) {
+      user(login: $userName) {
+        id
+        repositories(
+          first: 20,
+          ownerAffiliations: OWNER,
+          isFork: false,
+          orderBy: { field: PUSHED_AT, direction: DESC }
+        ) {
+          nodes {
+            name
+            stargazerCount
+            defaultBranchRef {
+              target {
+                ... on Commit {
+                  history {
+                    totalCount
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    try:
+        response = requests.post(
+            "https://api.github.com/graphql",
+            json={"query": id_query, "variables": {"userName": user}},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        data = response.json()
+        nodes = data["data"]["user"]["repositories"]["nodes"]
+
+        repo_commits = []
+        for node in nodes:
+            name = node["name"]
+            stars = node["stargazerCount"]
+            try:
+                commits = node["defaultBranchRef"]["target"]["history"]["totalCount"]
+            except (TypeError, KeyError):
+                commits = 0
+            repo_commits.append((name, commits, stars))
+
+        # Sort by commits, take top 5
+        top_repos = sorted(repo_commits, key=lambda x: x[1], reverse=True)[:5]
+        max_commits = max((c for _, c, _ in top_repos), default=1) or 1
+
+    except Exception:
+        top_repos = [("ERROR", 0, 0)]
+        max_commits = 1
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    lines = [
+        "+-------------------------------------------------------+",
+        "| git-statvg_gen // REPO_COMMIT_ANALYSIS                |",
+        "+-------------------------------------------------------+",
+        "|                                                       |",
+        "|  TOP REPOSITORIES BY COMMIT COUNT:                   |",
+        "|                                                       |",
+    ]
+
+    BAR_MAX = 20
+    for name, commits, stars in top_repos:
+        bar_len = round((commits / max_commits) * BAR_MAX) if max_commits > 0 else 0
+        bar = "=" * bar_len
+        short_name = name[:18].ljust(18)
+        commits_str = str(commits).rjust(4)
+        stars_str = f"*{stars}"
+        lines.append(f"|  {short_name} [{bar.ljust(BAR_MAX)}] {commits_str}c {stars_str.ljust(6)}|")
+
+    lines += [
+        "|                                                       |",
+        f"|  TOTAL_REPOS_SCANNED: {str(len(top_repos)).ljust(31)}|",
+        f"|  LAST_UPDATED: {now.ljust(38)}|",
+        "|  STATUS: SCAN_COMPLETE                                |",
+        "+-------------------------------------------------------+",
+    ]
+
+    ascii_text = "\n" + "\n".join(lines)
+    height = len(lines) * 16 + 60
+    return generate_svg_response(ascii_text, height=height)
