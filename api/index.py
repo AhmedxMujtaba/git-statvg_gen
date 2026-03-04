@@ -1,6 +1,7 @@
 from flask import Flask, Response, request
 import requests
 import os
+import re
 from datetime import datetime
 
 app = Flask(__name__)
@@ -16,7 +17,7 @@ def generate_svg_response(ascii_text, height=340):
         dy = "0" if i == 0 else "16"
         tspan_lines += f'            <tspan x="20" dy="{dy}">{line}</tspan>\n'
 
-    # Borderless floating terminal: <rect> removed
+    # BORDERLESS FIX: The <rect> is removed here
     svg = f"""
     <svg width="520" height="{height}" viewBox="0 0 520 {height}" xmlns="http://www.w3.org/2000/svg">
         <text y="35" font-family="'Courier New', Courier, monospace" font-size="14" fill="#00d4ff">
@@ -121,72 +122,71 @@ def contribution_terminal():
         )
         data = response.json()
         all_weeks = data['data']['user']['contributionsCollection']['contributionCalendar']['weeks']
-        # Extract total counts per week for the last 18 weeks
-        weekly_counts = [sum(day['contributionCount'] for day in week['contributionDays']) for week in all_weeks[-18:]]
+        weekly_counts = [sum(day['contributionCount'] for day in week['contributionDays']) for week in all_weeks[-26:]]
         max_val = max(weekly_counts) if max(weekly_counts) > 0 else 1
     except:
-        weekly_counts = [0] * 18
+        weekly_counts = [0] * 26
         max_val = 1
 
-    # Graph Rendering Logic
-    # We represent 3 levels of height for each bar
-    graph_lines = ["", "", ""] 
+    layers = ["", "", "", "", ""]
     for count in weekly_counts:
         ratio = count / max_val
-        if ratio > 0.6:
-            graph_lines[0] += " █ "
-            graph_lines[1] += " █ "
-            graph_lines[2] += " █ "
-        elif ratio > 0.3:
-            graph_lines[0] += "   "
-            graph_lines[1] += " █ "
-            graph_lines[2] += " █ "
-        elif ratio > 0:
-            graph_lines[0] += "   "
-            graph_lines[1] += "   "
-            graph_lines[2] += " █ "
-        else:
-            graph_lines[0] += "   "
-            graph_lines[1] += "   "
-            graph_lines[2] += " _ "
+        height = 0
+        if ratio > 0.8: height = 5
+        elif ratio > 0.6: height = 4
+        elif ratio > 0.4: height = 3
+        elif ratio > 0.2: height = 2
+        elif ratio > 0: height = 1
+        
+        for i in range(5):
+            layers[i] += " # " if (5 - i) <= height else "   "
 
     ascii_text = f"""
 +-------------------------------------------------------+
 | git-statvg_gen // CONTRIBUTION_VOLATILITY             |
 +-------------------------------------------------------+
 |                                                       |
-|  ACTIVITY_LOG (HISTORICAL_SPAN):                      |
+|  6-MONTH_ACTIVITY_LOG (T-26 WEEKS):                   |
 |                                                       |
-|  High | {graph_lines[0]} |
-|  Med  | {graph_lines[1]} |
-|  Low  | {graph_lines[2]} |
-|       +---------------------------------------        |
-|          Q3                Q4                Q1       |
+|  Peak | {layers[0]} |
+|       | {layers[1]} |
+|  Med  | {layers[2]} |
+|       | {layers[3]} |
+|  Base | {layers[4]} |
+|       +---------------------------------------------  |
+|          -6M      -4M      -2M      NOW               |
 |                                                       |
-|  STATUS: ANALYSIS_COMPLETE                            |
-|  SIGNAL: STABLE_GROWTH_DETECTED                       |
+|  STATUS: ARCHIVAL_SYNC_COMPLETE                       |
+|  PEAK_WEEKLY_COMMITS: {str(max_val).ljust(31)} |
 +-------------------------------------------------------+"""
-    return generate_svg_response(ascii_text, height=320)
+    return generate_svg_response(ascii_text, height=360)
+
 def traffic_terminal():
     user = "AhmedXMujtaba"
+    count = "---"
     try:
-        r = requests.get(f"https://visitcount.itsvg.in/api?id={user}")
-        count = r.text if r.status_code == 200 else "---"
-    except: count = "ERROR"
+        r = requests.get(f"https://visitcount.itsvg.in/api?id={user}", timeout=5)
+        if r.status_code == 200:
+            # Regex extracts ONLY digits from the itsvg SVG response
+            numbers = re.findall(r'\d+', r.text)
+            if numbers:
+                count = "".join(numbers)
+    except:
+        count = "OFFLINE"
 
     ascii_text = f"""
 +-------------------------------------------------------+
 | git-statvg_gen // TRAFFIC_ANALYSIS                    |
 +-------------------------------------------------------+
 |                                                       |
-|  UPLINK_SOURCE: GITHUB_CAMO_PROXY                     |
-|  PROTOCOL:      HTTPS/TLS_1.3                         |
+|  UPLINK:   GITHUB_PROXY                               |
+|  SESSION:  ACTIVE                                     |
 |                                                       |
-|  TOTAL_SESSIONS: {count.ljust(36)} |
-|  THREAT_LEVEL:   MINIMAL                              |
+|  VISITS:   {count.ljust(41)} |
+|  THREAT:   NONE                                       |
 |                                                       |
 |  [||||||||||||||||||||||||||||||||||||||||||||] 100%  |
 |                                                       |
-|  LISTENING FOR INCOMING CONNECTIONS...                |
+|  MONITORING INCOMING PACKETS...                       |
 +-------------------------------------------------------+"""
     return generate_svg_response(ascii_text, height=280)
