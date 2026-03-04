@@ -1,100 +1,96 @@
-from flask import Flask, Response
+from flask import Flask, Response, request
 import requests
 import os
 from datetime import datetime
 
 app = Flask(__name__)
 
-@app.route('/api')
-def generate_terminal():
-    user = "AhmedXMujtaba"
-    headers = {}
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # 1. Use token to prevent 403 Rate Limit crashes
+def get_headers():
     token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    return {"Authorization": f"Bearer {token}"} if token else {}
 
-    # Default fallbacks
-    repos, followers, following, account_age = 0, 0, 0, 0
-    
-    try:
-        user_response = requests.get(f"https://api.github.com/users/{user}", headers=headers)
-        user_response.raise_for_status() 
-        user_data = user_response.json()
-        
-        repos = user_data.get("public_repos", 0)
-        followers = user_data.get("followers", 0)
-        following = user_data.get("following", 0)
-        
-        created_at = datetime.strptime(user_data.get("created_at"), "%Y-%m-%dT%H:%M:%SZ")
-        account_age = (datetime.now() - created_at).days
-        
-    except requests.exceptions.RequestException as e:
-        print(f"API Connection Error: {e}")
-
-    # 2. Alignment Logic
-    def pad_line(text):
-        return text.ljust(53)
-
-    line1 = pad_line(f"  ARCHITECT: {user}")
-    line2 = pad_line(f"  STATUS:    LEAD_ARCHITECT")
-    line3 = pad_line(f"  > REPOSITORIES: {repos}")
-    line4 = pad_line(f"  > FOLLOWERS:    {followers}")
-    line5 = pad_line(f"  > FOLLOWING:    {following}")
-    line6 = pad_line(f"  > UPTIME:       {account_age} DAYS")
-    line7 = pad_line(f"  > LAST_UPDATED: {now}") # Added timestamp
-    
-    
-    ascii_text = f"""
-+-------------------------------------------------------+
-| git-statvg_gen // SYSTEM_TELEMETRY                    |
-+-------------------------------------------------------+
-|                                                       |
-|{line1}|
-|{line2}|
-|-------------------------------------------------------|
-|  METRICS:                                             |
-|{line3}|
-|{line4}|
-|{line5}|
-|{line6}|
-|{line7}|
-|--------------------------------------------------------
-|  CORE_STABILITY: [=========================] 100%     |
-|  UPLINK: ACTIVE                                       |
-|                                                       |
-+-------------------------------------------------------+
-    """
-
-    # 3. Escape XML characters
+def generate_svg_response(ascii_text, height=340):
     escaped_text = ascii_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('+', '&#43;')
-
-    # 4. CRITICAL: The Multiline Loop for GitHub Camo
     tspan_lines = ""
     for i, line in enumerate(escaped_text.strip('\n').split('\n')):
         dy = "0" if i == 0 else "16"
         tspan_lines += f'            <tspan x="20" dy="{dy}">{line}</tspan>\n'
 
-    # 5. SVG Wrapper with Transparent Background (fill="none")
-    svg_content = f"""
-    <svg width="520" height="340" viewBox="0 0 520 340" xmlns="http://www.w3.org/2000/svg">
-        <rect x="5" y="5" width="510" height="330" fill="none" stroke="#30363d" stroke-width="2" rx="10"/>
+    svg = f"""
+    <svg width="520" height="{height}" viewBox="0 0 520 {height}" xmlns="http://www.w3.org/2000/svg">
+        <rect x="5" y="5" width="510" height="{height-10}" fill="none" stroke="#30363d" stroke-width="2" rx="10"/>
         <text y="35" font-family="'Courier New', Courier, monospace" font-size="14" fill="#00d4ff">
 {tspan_lines}
             <tspan x="20" dy="16" opacity="0.8">_</tspan>
         </text>
     </svg>
     """
-
-    # 6. Public Headers for Camo
-    headers = {
+    return Response(svg.strip(), status=200, mimetype='image/svg+xml', headers={
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
         'Content-Type': 'image/svg+xml',
         'Access-Control-Allow-Origin': '*'
-    }
-    return Response(svg_content.strip(), status=200, mimetype='image/svg+xml', headers=headers)
-if __name__ == '__main__':
-    app.run()
+    })
+
+@app.route('/api')
+def main_terminal():
+    user = "AhmedXMujtaba"
+    try:
+        r = requests.get(f"https://api.github.com/users/{user}", headers=get_headers())
+        data = r.json()
+        repos = data.get("public_repos", 0)
+        followers = data.get("followers", 0)
+        age = (datetime.now() - datetime.strptime(data.get("created_at"), "%Y-%m-%dT%H:%M:%SZ")).days
+    except:
+        repos, followers, age = 0, 0, 0
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    pad = lambda t: t.ljust(53)
+    
+    ascii_text = f"""
++-------------------------------------------------------+
+| git-statvg_gen // SYSTEM_TELEMETRY                    |
++-------------------------------------------------------+
+|                                                       |
+|  ARCHITECT: {user.ljust(41)} |
+|  STATUS:    LEAD_ARCHITECT                            |
+|                                                       |
+|  METRICS:                                             |
+|  > REPOSITORIES: {str(repos).ljust(36)} |
+|  > FOLLOWERS:    {str(followers).ljust(36)} |
+|  > UPTIME:       {str(age).ljust(30)} DAYS |
+|  > LAST_UPDATED: {now.ljust(36)} |
+|                                                       |
+|  CORE_STABILITY: [=========================] 100%     |
+|  UPLINK: ACTIVE                                       |
++-------------------------------------------------------+"""
+    return generate_svg_response(ascii_text)
+
+@app.route('/api/languages')
+def language_terminal():
+    user = "AhmedXMujtaba"
+    try:
+        r = requests.get(f"https://api.github.com/users/{user}/repos", headers=get_headers())
+        repos = r.json()
+        langs = {}
+        for repo in repos:
+            lang = repo.get("language")
+            if lang: langs[lang] = langs.get(lang, 0) + 1
+        sorted_langs = sorted(langs.items(), key=lambda x: x[1], reverse=True)[:4]
+    except:
+        sorted_langs = [("None", 0)]
+
+    ascii_text = f"""
++-------------------------------------------------------+
+| git-statvg_gen // TECH_STACK_DISTRIBUTION             |
++-------------------------------------------------------+
+|                                                       |
+|  ANALYZING REPOSITORY DATA...                         |
+|                                                       |"""
+    for lang, count in sorted_langs:
+        bar = "=" * (count * 2)
+        ascii_text += f"\n|  > {lang.ljust(12)} [{bar.ljust(20)}] {count} Repos |"
+    
+    ascii_text += """
+|                                                       |
++-------------------------------------------------------+"""
+    return generate_svg_response(ascii_text, height=280)
